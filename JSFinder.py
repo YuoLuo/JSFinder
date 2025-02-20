@@ -13,6 +13,7 @@ from tqdm import tqdm
 import time
 import json
 from datetime import datetime
+import os
 
 def parse_args():
     parser = argparse.ArgumentParser(epilog='\tExample: \r\npython ' + sys.argv[0] + " -u http://www.baidu.com")
@@ -258,40 +259,50 @@ def setup_logging(log_level=logging.INFO):
         ]
     )
 
-# HTML报告模板 - 最简单的版本
-HTML_TEMPLATE = '''<!DOCTYPE html>
+def generate_html_report(urls, subdomains, scan_info):
+    """生成HTML报告"""
+    # 确保static目录存在
+    os.makedirs('static', exist_ok=True)
+    
+    # 如果style.css不存在，创建它
+    css_path = os.path.join('static', 'style.css')
+    if not os.path.exists(css_path):
+        with open(css_path, 'w') as f:
+            f.write('''body{font-family:sans-serif;margin:40px auto;max-width:1200px;padding:0 20px;background:#fff}
+h1{color:#2c3e50;border-bottom:2px solid #eee;padding-bottom:10px}
+.info{background:#f8f9fa;padding:15px;border-radius:4px;margin:20px 0}
+.results{margin:20px 0}
+pre{background:#f8f9fa;padding:15px;border-radius:4px;overflow-x:auto;border:1px solid #eee}''')
+
+    # 使用相对路径引用样式表的HTML模板
+    html_content = f'''<!DOCTYPE html>
 <html>
-<head><title>JSFinder Results</title></head>
-<body bgcolor="#FFFFFF">
-<h1>JSFinder Scan Results</h1>
-<hr>
-<b>Target:</b> {target}<br>
-<b>Scan Time:</b> {timestamp}<br>
-<b>Duration:</b> {duration:.2f} seconds<br>
-<hr>
-<h2>Found URLs ({url_count})</h2>
-<pre style="background:#F0F0F0;padding:10px;">
-{urls}
-</pre>
-<hr>
-<h2>Found Subdomains ({subdomain_count})</h2>
-<pre style="background:#F0F0F0;padding:10px;">
-{subdomains}
-</pre>
+<head>
+<meta charset="utf-8">
+<title>JSFinder Results</title>
+<link rel="stylesheet" href="static/style.css">
+</head>
+<body>
+<div class="container">
+    <h1>JSFinder Scan Results</h1>
+    <div class="info">
+        <p><b>Target:</b> {scan_info['target']}</p>
+        <p><b>Scan Time:</b> {scan_info['timestamp']}</p>
+        <p><b>Duration:</b> {scan_info['duration']:.2f} seconds</p>
+    </div>
+    <div class="results">
+        <h2>Found URLs <span class="count">{len(urls)}</span></h2>
+        <pre>{chr(10).join(urls)}</pre>
+    </div>
+    <div class="results">
+        <h2>Found Subdomains <span class="count">{len(subdomains)}</span></h2>
+        <pre>{chr(10).join(subdomains)}</pre>
+    </div>
+</div>
 </body>
 </html>'''
 
-def generate_html_report(urls, subdomains, scan_info):
-    """生成HTML报告"""
-    return HTML_TEMPLATE.format(
-        target=scan_info['target'],
-        timestamp=scan_info['timestamp'],
-        duration=scan_info['duration'],
-        url_count=len(urls),
-        subdomain_count=len(subdomains),
-        urls='\n'.join(urls),
-        subdomains='\n'.join(subdomains)
-    )
+    return html_content
 
 def load_blacklist():
     """加载黑名单配置"""
