@@ -17,8 +17,8 @@ JSFinder是一款用作快速在网站的js文件中提取URL，子域名的工�
   - Real-time scanning progress display
 
 - **HTML报告 (HTML Report)**
-  - 生成美观的HTML格式报告
-  - Generate beautiful HTML format reports
+  - 生成HTML格式报告
+  - Generate  HTML format reports
   ```
   python JSFinder.py -u http://www.example.com -o report.html
   ```
@@ -87,7 +87,7 @@ pip install -r requirements.txt
 ## 作者 (Authors)
 
 - **原作者 (Original Author)**: [Threezh1](https://threezh1.github.io/)
-- **增强版作者 (modifications Version Author)**: [yuluo](https://github.com/YuoLuo)
+- **修改版作者 (modifications Version Author)**: [yuluo](https://github.com/YuoLuo)
 
 ## 许可证 (License)
 
