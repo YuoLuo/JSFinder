@@ -1,4 +1,4 @@
-# JSFinder Enhanced
+# JSFinder modifications
 
 JSFinder is a tool for quickly extracting URLs and subdomains from JS files on a website.
 
