@@ -87,7 +87,7 @@ pip install -r requirements.txt
 ## 作者 (Authors)
 
 - **原作者 (Original Author)**: [Threezh1](https://threezh1.github.io/)
-- **增强版作者 (Enhanced Version Author)**: yuluo
+- **增强版作者 (Enhanced Version Author)**: [yuluo][https://github.com/YuoLuo]
 
 ## 许可证 (License)
 
