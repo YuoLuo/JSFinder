@@ -1,152 +1,104 @@
-# JSFinder
+# JSFinder Enhanced
 
 JSFinder is a tool for quickly extracting URLs and subdomains from JS files on a website.
 
 JSFinder是一款用作快速在网站的js文件中提取URL，子域名的工具。
 
-提取URL的正则部分使用的是[LinkFinder](https://github.com/GerbenJavado/LinkFinder) 
+> 本项目基于[JSFinder](https://github.com/Threezh1/JSFinder)开发,URL提取正则来自[LinkFinder](https://github.com/GerbenJavado/LinkFinder)
 
-JSFinder获取URL和子域名的方式：
+## 🚀 新增功能 (New Features)
 
-![image](https://i.loli.net/2020/05/24/R2fImgNZHPkvhEj.png)
+- **并发处理 (Concurrent Processing)**
+  - 使用线程池提高扫描速度
+  - Using thread pool to improve scanning speed
 
-Blog: https://threezh1.com/
+- **进度显示 (Progress Display)**
+  - 实时显示扫描进度
+  - Real-time scanning progress display
 
-## 更新说明
+- **HTML报告 (HTML Report)**
+  - 生成美观的HTML格式报告
+  - Generate beautiful HTML format reports
+  ```
+  python JSFinder.py -u http://www.example.com -o report.html
+  ```
 
-- 增加油猴脚本用于在浏览器上访问页面时获取域名与接口，具体可见：https://github.com/Threezh1/Deconstruct/tree/main/DevTools_JSFinder
+- **URL过滤 (URL Filtering)**
+  - 支持通过config.py配置URL黑名单
+  - Support URL blacklist configuration via config.py
+  ```python
+  # config.py example
+  URL_BLACKLIST = {
+      'domains': ['google-analytics.com', 'doubleclick.net'],
+      'extensions': ['.png', '.jpg', '.gif'],
+      'keywords': ['javascript:', 'mailto:']
+  }
+  ```
 
-## 用法
+- **改进的错误处理 (Improved Error Handling)**
+  - 智能重试机制
+  - 详细的日志记录
+  - Smart retry mechanism
+  - Detailed logging
 
-- **简单爬取**
+## 用法 (Usage)
 
-```
-python JSFinder.py -u http://www.mi.com
-```
+### 基本用法 (Basic Usage)
 
-这个命令会爬取 http://www.mi.com 这单个页面的所有的js链接，并在其中发现url和子域名
+```bash
+# 简单扫描
+python JSFinder.py -u http://example.com
 
-返回示例：
+# 深度扫描并生成HTML报告
+python JSFinder.py -u http://example.com -d -o report.html
 
-```
-url:http://www.mi.com                                         
-Find 50 URL:                                                  
-http://api-order.test.mi.com                                  
-http://api.order.mi.com                                       
-http://userid.xiaomi.com/userId                               
-http://order.mi.com/site/login?redirectUrl=                                                   
-...已省略                            
-                                                              
-Find 26 Subdomain:                                            
-api-order.test.mi.com                                         
-api.order.mi.com                                              
-userid.xiaomi.com                                             
-order.mi.com                                                                                              
-...已省略
+# 使用Cookie扫描
+python JSFinder.py -u http://example.com -c "sessionid=xxx"
 
-```
-
-- **深度爬取**
-
-```
-python JSFinder.py -u http://www.mi.com -d
-```
-
-深入一层页面爬取JS，时间会消耗的更长。
-
-建议使用-ou 和 -os来指定保存URL和子域名的文件名。 例如：
-
-```
-python JSFinder.py -u http://www.mi.com -d -ou mi_url.txt -os mi_subdomain.txt
-```
-
-- **批量指定URL/指定JS**
-
-指定URL：
-
-```
-python JSFinder.py -f text.txt
+# 从文件扫描
+python JSFinder.py -f urls.txt
 ```
 
-指定JS：
+### 参数说明 (Parameters)
 
-```
-python JSFinder.py -f text.txt -j
-```
+| 参数 | 说明 | Description |
+|------|------|-------------|
+| -u, --url | 指定目标网站 | Target website |
+| -c, --cookie | 指定Cookie | Cookie for requests |
+| -f, --file | 指定包含URL或JS的文件 | File containing URLs or JS |
+| -ou, --outputurl | URL输出文件名 | Output file for URLs |
+| -os, --outputsubdomain | 子域名输出文件名 | Output file for subdomains |
+| -j, --js | 在JS文件中查找 | Find in JS files |
+| -d, --deep | 深度查找 | Deep crawling |
+| -o, --output | 输出HTML报告文件名 | Output HTML report filename |
 
-可以用brupsuite爬取网站后提取出URL或者JS链接，保存到txt文件中，一行一个。
+### 注意事项 (Notes)
 
-指定URL或JS就不需要加深度爬取，单个页面即可。
+- URL需要包含http://或https://
+- 指定JS文件爬取时，返回的URL为相对URL
+- 批量URL扫描时，相对URL会基于第一个URL的域名转换为绝对URL
 
-- **其他**
+## 依赖安装 (Dependencies)
 
--c 指定cookie来爬取页面 例：
-
-```
-python JSFinder.py -u http://www.mi.com -c "session=xxx"
-```
-
--ou 指定文件名保存URL链接 例：
-
-```
-python JSFinder.py -u http://www.mi.com -ou mi_url.txt
-```
-
--os 指定文件名保存子域名 例：
-
-```
-python JSFinder.py -u http://www.mi.com -os mi_subdomain.txt
+```bash
+pip install -r requirements.txt
 ```
 
-- **注意**
+## 作者 (Authors)
 
-url 不用加引号
+- **原作者 (Original Author)**: [Threezh1](https://threezh1.github.io/)
+- **增强版作者 (Enhanced Version Author)**: yuluo
 
-url 需要http:// 或 https://
+## 许可证 (License)
 
-指定JS文件爬取时，返回的URL为相对URL
+本项目采用 MIT 许可证。详见 [LICENSE](LICENSE) 文件。
 
-指定URL文件爬取时，返回的相对URL都会以指定的第一个链接的域名作为其域名来转化为绝对URL。
+This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
 
-- **截图**
+Copyright (c) 2025 yuluo
 
-实测简单爬取：
+## 免责声明 (Disclaimer)
 
-```
-python3 JSFinder.py -u https://www.jd.com/
-```
+本工具仅用于安全研究和授权测试，使用本工具进行攻击的行为与作者无关。
 
-URL:
-
-![02.jpg](https://i.loli.net/2020/05/24/aROFI5fC3UyK8EP.jpg)
-
-![03.jpg](https://i.loli.net/2020/05/24/rXC4Bba7oMw8AHW.jpg)
-
-Subdomain:
-
-![01.jpg](https://i.loli.net/2020/05/24/69WvDmy7al4hQfd.jpg)
-
-实测深度爬取：
-
-```
-python3 JSFinder.py -u https://www.jd.com/ -d -ou jd_url.txt -os jd_domain.txt
-```
-
-![05.jpg](https://i.loli.net/2020/05/24/dhxTQnaW4ef9Vzu.jpg)
-
-![06.jpg](https://i.loli.net/2020/05/24/NAX9PnLaW6melVk.jpg)
-
-实际测试：
-```
-http://www.oppo.com
-URL:4426 个
-子域名：24 个
-
-http://www.mi.com
-URL:1043 个
-子域名：111 个
-
-http://www.jd.com
-URL:3627 个
-子域名：306 个
-```
+This tool is for security research and authorized testing only. The authors are not responsible for any malicious use of this tool.
