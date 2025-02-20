@@ -279,23 +279,23 @@ pre{background:#f8f9fa;padding:15px;border-radius:4px;overflow-x:auto;border:1px
 <html>
 <head>
 <meta charset="utf-8">
-<title>JSFinder Results</title>
+<title>JSFinder 扫描报告</title>
 <link rel="stylesheet" href="static/style.css">
 </head>
 <body>
 <div class="container">
-    <h1>JSFinder Scan Results</h1>
+    <h1>JSFinder 扫描报告</h1>
     <div class="info">
-        <p><b>Target:</b> {scan_info['target']}</p>
-        <p><b>Scan Time:</b> {scan_info['timestamp']}</p>
-        <p><b>Duration:</b> {scan_info['duration']:.2f} seconds</p>
+        <p><b>目标网站：</b> {scan_info['target']}</p>
+        <p><b>扫描时间：</b> {scan_info['timestamp']}</p>
+        <p><b>扫描用时：</b> {scan_info['duration']:.2f} 秒</p>
     </div>
     <div class="results">
-        <h2>Found URLs <span class="count">{len(urls)}</span></h2>
+        <h2>发现的 URL <span class="count">{len(urls)}</span></h2>
         <pre>{chr(10).join(urls)}</pre>
     </div>
     <div class="results">
-        <h2>Found Subdomains <span class="count">{len(subdomains)}</span></h2>
+        <h2>发现的子域名 <span class="count">{len(subdomains)}</span></h2>
         <pre>{chr(10).join(subdomains)}</pre>
     </div>
 </div>
