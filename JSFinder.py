@@ -258,75 +258,40 @@ def setup_logging(log_level=logging.INFO):
         ]
     )
 
-# 简化HTML报告模板
-HTML_TEMPLATE = '''
-<!DOCTYPE html>
+# HTML报告模板 - 最简单的版本
+HTML_TEMPLATE = '''<!DOCTYPE html>
 <html>
-<head>
-    <title>JSFinder Results</title>
-    <style>
-        body { font-family: Arial, sans-serif; margin: 20px; }
-        .container { max-width: 1200px; margin: 0 auto; }
-        .section { margin-bottom: 30px; }
-        .url-list { background: #f5f5f5; padding: 10px; border-radius: 5px; }
-        .subdomain-list { background: #e8f5e9; padding: 10px; border-radius: 5px; }
-        h2 { color: #333; }
-        .stats { display: flex; gap: 20px; margin-bottom: 20px; }
-        .stat-box { background: #fff; padding: 15px; border-radius: 5px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
-    </style>
-</head>
-<body>
-    <div class="container">
-        <h1>JSFinder Scan Results</h1>
-        {content}
-    </div>
+<head><title>JSFinder Results</title></head>
+<body bgcolor="#FFFFFF">
+<h1>JSFinder Scan Results</h1>
+<hr>
+<b>Target:</b> {target}<br>
+<b>Scan Time:</b> {timestamp}<br>
+<b>Duration:</b> {duration:.2f} seconds<br>
+<hr>
+<h2>Found URLs ({url_count})</h2>
+<pre style="background:#F0F0F0;padding:10px;">
+{urls}
+</pre>
+<hr>
+<h2>Found Subdomains ({subdomain_count})</h2>
+<pre style="background:#F0F0F0;padding:10px;">
+{subdomains}
+</pre>
 </body>
-</html>
-'''
+</html>'''
 
 def generate_html_report(urls, subdomains, scan_info):
     """生成HTML报告"""
-    stats_html = f'''
-    <div class="stats">
-        <div class="stat-box">
-            <h3>Total URLs</h3>
-            <p>{len(urls)}</p>
-        </div>
-        <div class="stat-box">
-            <h3>Total Subdomains</h3>
-            <p>{len(subdomains)}</p>
-        </div>
-        <div class="stat-box">
-            <h3>Scan Duration</h3>
-            <p>{scan_info['duration']:.2f} seconds</p>
-        </div>
-    </div>
-    '''
-    
-    urls_html = '''
-    <div class="section">
-        <h2>Discovered URLs</h2>
-        <div class="url-list">
-            <ul>
-                {}
-            </ul>
-        </div>
-    </div>
-    '''.format('\n'.join(f'<li>{url}</li>' for url in urls))
-    
-    subdomains_html = '''
-    <div class="section">
-        <h2>Discovered Subdomains</h2>
-        <div class="subdomain-list">
-            <ul>
-                {}
-            </ul>
-        </div>
-    </div>
-    '''.format('\n'.join(f'<li>{subdomain}</li>' for subdomain in subdomains))
-    
-    content = stats_html + urls_html + subdomains_html
-    return HTML_TEMPLATE.format(content=content)
+    return HTML_TEMPLATE.format(
+        target=scan_info['target'],
+        timestamp=scan_info['timestamp'],
+        duration=scan_info['duration'],
+        url_count=len(urls),
+        subdomain_count=len(subdomains),
+        urls='\n'.join(urls),
+        subdomains='\n'.join(subdomains)
+    )
 
 def load_blacklist():
     """加载黑名单配置"""
@@ -359,7 +324,7 @@ def should_filter_url(url, blacklist):
         
     return False
 
-def giveresult(urls, domain):
+def giveresult(urls, domain, start_time):
     if urls == None:
         logging.warning("No results found")
         return None
@@ -395,7 +360,7 @@ def giveresult(urls, domain):
         scan_info = {
             'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
             'target': domain,
-            'duration': time.time() - scan_info['start_time']
+            'duration': time.time() - start_time
         }
         
         html_report = generate_html_report(urls, subdomains, scan_info)
@@ -423,23 +388,23 @@ if __name__ == "__main__":
 	# 设置日志
 	setup_logging()
 	
-	scan_info = {'start_time': time.time()}
+	start_time = time.time()  # 记录开始时间
 	
 	try:
 		if args.file == None:
 			if args.deep is not True:
 				urls = find_by_url(args.url)
-				giveresult(urls, args.url)
+				giveresult(urls, args.url, start_time)  # 传入start_time
 			else:
 				urls = find_by_url_deep(args.url)
-				giveresult(urls, args.url)
+				giveresult(urls, args.url, start_time)  # 传入start_time
 		else:
 			if args.js is not True:
 				urls = find_by_file(args.file)
-				giveresult(urls, urls[0] if urls else None)
+				giveresult(urls, urls[0] if urls else None, start_time)  # 传入start_time
 			else:
 				urls = find_by_file(args.file, js=True)
-				giveresult(urls, urls[0] if urls else None)
+				giveresult(urls, urls[0] if urls else None, start_time)  # 传入start_time
 	except Exception as e:
 		logging.error(f"An error occurred: {str(e)}")
 		sys.exit(1)
