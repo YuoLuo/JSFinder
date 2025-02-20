@@ -7,6 +7,12 @@ import requests, argparse, sys, re
 from requests.packages import urllib3
 from urllib.parse import urlparse
 from bs4 import BeautifulSoup
+import concurrent.futures
+import logging
+from tqdm import tqdm
+import time
+import json
+from datetime import datetime
 
 def parse_args():
     parser = argparse.ArgumentParser(epilog='\tExample: \r\npython ' + sys.argv[0] + " -u http://www.baidu.com")
@@ -17,6 +23,7 @@ def parse_args():
     parser.add_argument("-os", "--outputsubdomain", help="Output file name. ")
     parser.add_argument("-j", "--js", help="Find in js file", action="store_true")
     parser.add_argument("-d", "--deep",help="Deep find", action="store_true")
+    parser.add_argument("-o", "--output", help="Output HTML report file name")
     return parser.parse_args()
 
 # Regular expression comes from https://github.com/GerbenJavado/LinkFinder
@@ -53,15 +60,23 @@ def extract_URL(JS):
 		if match.group() not in js_url]
 
 # Get the page source
-def Extract_html(URL):
-	header = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/74.0.3729.108 Safari/537.36",
-	"Cookie": args.cookie}
-	try:
-		raw = requests.get(URL, headers = header, timeout=3, verify=False)
-		raw = raw.content.decode("utf-8", "ignore")
-		return raw
-	except:
-		return None
+def Extract_html(URL, max_retries=3, timeout=10):
+	header = {
+		"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/74.0.3729.108 Safari/537.36",
+		"Cookie": args.cookie
+	}
+	
+	for attempt in range(max_retries):
+		try:
+			raw = requests.get(URL, headers=header, timeout=timeout, verify=False)
+			raw.raise_for_status()  # 检查响应状态
+			return raw.content.decode("utf-8", "ignore")
+		except requests.exceptions.RequestException as e:
+			logging.warning(f"Attempt {attempt + 1}/{max_retries} failed for {URL}: {str(e)}")
+			if attempt == max_retries - 1:
+				logging.error(f"Failed to access {URL} after {max_retries} attempts")
+				return None
+			time.sleep(2)  # 重试前等待
 
 # Handling relative URLs
 def process_url(URL, re_URL):
@@ -101,47 +116,57 @@ def find_last(string,str):
 def find_by_url(url, js = False):
 	if js == False:
 		try:
-			print("url:" + url)
+			logging.info(f"Scanning URL: {url}")
 		except:
-			print("Please specify a URL like https://www.baidu.com")
-		html_raw = Extract_html(url)
-		if html_raw == None: 
-			print("Fail to access " + url)
+			logging.error("Please specify a URL like https://www.baidu.com")
 			return None
-		#print(html_raw)
+		
+		html_raw = Extract_html(url)
+		if html_raw == None:
+			logging.error(f"Failed to access {url}")
+			return None
+		
 		html = BeautifulSoup(html_raw, "html.parser")
-		html_scripts = html.findAll("script")
+		html_scripts = html.find_all("script")
 		script_array = {}
 		script_temp = ""
-		for html_script in html_scripts:
+		
+		# 添加进度条显示
+		logging.info(f"Found {len(html_scripts)} script tags")
+		for html_script in tqdm(html_scripts, desc="Processing scripts"):
 			script_src = html_script.get("src")
 			if script_src == None:
 				script_temp += html_script.get_text() + "\n"
 			else:
 				purl = process_url(url, script_src)
 				script_array[purl] = Extract_html(purl)
+				
 		script_array[url] = script_temp
 		allurls = []
+		
+		# 处理提取的URL
 		for script in script_array:
-			#print(script)
 			temp_urls = extract_URL(script_array[script])
-			if len(temp_urls) == 0: continue
-			for temp_url in temp_urls:
-				allurls.append(process_url(script, temp_url)) 
+			if temp_urls and len(temp_urls) > 0:
+				for temp_url in temp_urls:
+					allurls.append(process_url(script, temp_url))
+					
+		# 过滤和去重
 		result = []
+		url_raw = urlparse(url)
+		domain = url_raw.netloc
+		positions = find_last(domain, ".")
+		miandomain = domain
+		if len(positions) > 1:
+			miandomain = domain[positions[-2] + 1:]
+			
 		for singerurl in allurls:
-			url_raw = urlparse(url)
-			domain = url_raw.netloc
-			positions = find_last(domain, ".")
-			miandomain = domain
-			if len(positions) > 1:miandomain = domain[positions[-2] + 1:]
-			#print(miandomain)
 			suburl = urlparse(singerurl)
 			subdomain = suburl.netloc
-			#print(singerurl)
 			if miandomain in subdomain or subdomain.strip() == "":
 				if singerurl.strip() not in result:
 					result.append(singerurl)
+					
 		return result
 	return sorted(set(extract_URL(Extract_html(url)))) or None
 
@@ -165,30 +190,40 @@ def find_subdomain(urls, mainurl):
 
 def find_by_url_deep(url):
 	html_raw = Extract_html(url)
-	if html_raw == None: 
-		print("Fail to access " + url)
+	if html_raw == None:
+		logging.error(f"Fail to access {url}")
 		return None
+		
 	html = BeautifulSoup(html_raw, "html.parser")
-	html_as = html.findAll("a")
+	html_as = html.find_all("a")
 	links = []
+	
 	for html_a in html_as:
 		src = html_a.get("href")
 		if src == "" or src == None: continue
 		link = process_url(url, src)
 		if link not in links:
 			links.append(link)
+			
 	if links == []: return None
-	print("ALL Find " + str(len(links)) + " links")
+	logging.info(f"Found {len(links)} links to process")
+	
 	urls = []
-	i = len(links)
-	for link in links:
-		temp_urls = find_by_url(link)
-		if temp_urls == None: continue
-		print("Remaining " + str(i) + " | Find " + str(len(temp_urls)) + " URL in " + link)
-		for temp_url in temp_urls:
-			if temp_url not in urls:
-				urls.append(temp_url)
-		i -= 1
+	# 使用线程池处理链接
+	with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
+		future_to_url = {executor.submit(find_by_url, link): link for link in links}
+		
+		# 使用tqdm显示进度
+		for future in tqdm(concurrent.futures.as_completed(future_to_url), total=len(links), desc="Processing URLs"):
+			link = future_to_url[future]
+			try:
+				temp_urls = future.result()
+				if temp_urls:
+					logging.info(f"Found {len(temp_urls)} URLs in {link}")
+					urls.extend([url for url in temp_urls if url not in urls])
+			except Exception as e:
+				logging.error(f"Error processing {link}: {str(e)}")
+				
 	return urls
 
 	
@@ -212,45 +247,199 @@ def find_by_file(file_path, js=False):
 		i -= 1
 	return urls
 
-def giveresult(urls, domian):
-	if urls == None:
-		return None
-	print("Find " + str(len(urls)) + " URL:")
-	content_url = ""
-	content_subdomain = ""
-	for url in urls:
-		content_url += url + "\n"
-		print(url)
-	subdomains = find_subdomain(urls, domian)
-	print("\nFind " + str(len(subdomains)) + " Subdomain:")
-	for subdomain in subdomains:
-		content_subdomain += subdomain + "\n"
-		print(subdomain)
-	if args.outputurl != None:
-		with open(args.outputurl, "a", encoding='utf-8') as fobject:
-			fobject.write(content_url)
-		print("\nOutput " + str(len(urls)) + " urls")
-		print("Path:" + args.outputurl)
-	if args.outputsubdomain != None:
-		with open(args.outputsubdomain, "a", encoding='utf-8') as fobject:
-			fobject.write(content_subdomain)
-		print("\nOutput " + str(len(subdomains)) + " subdomains")
-		print("Path:" + args.outputsubdomain)
+def setup_logging(log_level=logging.INFO):
+    """配置日志"""
+    logging.basicConfig(
+        level=log_level,
+        format='%(asctime)s - %(levelname)s - %(message)s',
+        handlers=[
+            logging.FileHandler('jsfinder.log'),
+            logging.StreamHandler()
+        ]
+    )
+
+# 简化HTML报告模板
+HTML_TEMPLATE = '''
+<!DOCTYPE html>
+<html>
+<head>
+    <title>JSFinder Results</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .container { max-width: 1200px; margin: 0 auto; }
+        .section { margin-bottom: 30px; }
+        .url-list { background: #f5f5f5; padding: 10px; border-radius: 5px; }
+        .subdomain-list { background: #e8f5e9; padding: 10px; border-radius: 5px; }
+        h2 { color: #333; }
+        .stats { display: flex; gap: 20px; margin-bottom: 20px; }
+        .stat-box { background: #fff; padding: 15px; border-radius: 5px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>JSFinder Scan Results</h1>
+        {content}
+    </div>
+</body>
+</html>
+'''
+
+def generate_html_report(urls, subdomains, scan_info):
+    """生成HTML报告"""
+    stats_html = f'''
+    <div class="stats">
+        <div class="stat-box">
+            <h3>Total URLs</h3>
+            <p>{len(urls)}</p>
+        </div>
+        <div class="stat-box">
+            <h3>Total Subdomains</h3>
+            <p>{len(subdomains)}</p>
+        </div>
+        <div class="stat-box">
+            <h3>Scan Duration</h3>
+            <p>{scan_info['duration']:.2f} seconds</p>
+        </div>
+    </div>
+    '''
+    
+    urls_html = '''
+    <div class="section">
+        <h2>Discovered URLs</h2>
+        <div class="url-list">
+            <ul>
+                {}
+            </ul>
+        </div>
+    </div>
+    '''.format('\n'.join(f'<li>{url}</li>' for url in urls))
+    
+    subdomains_html = '''
+    <div class="section">
+        <h2>Discovered Subdomains</h2>
+        <div class="subdomain-list">
+            <ul>
+                {}
+            </ul>
+        </div>
+    </div>
+    '''.format('\n'.join(f'<li>{subdomain}</li>' for subdomain in subdomains))
+    
+    content = stats_html + urls_html + subdomains_html
+    return HTML_TEMPLATE.format(content=content)
+
+def load_blacklist():
+    """加载黑名单配置"""
+    try:
+        from config import URL_BLACKLIST
+        logging.info("Loaded URL blacklist from config.py")
+        return URL_BLACKLIST
+    except ImportError:
+        logging.info("No blacklist config found, continuing without filtering")
+        return None
+
+def should_filter_url(url, blacklist):
+    """检查URL是否应该被过滤"""
+    if not blacklist:
+        return False
+        
+    parsed_url = urlparse(url)
+    
+    # 检查域名黑名单
+    if any(domain in parsed_url.netloc for domain in blacklist.get('domains', [])):
+        return True
+        
+    # 检查文件扩展名
+    if any(url.lower().endswith(ext) for ext in blacklist.get('extensions', [])):
+        return True
+        
+    # 检查URL关键词
+    if any(keyword in url.lower() for keyword in blacklist.get('keywords', [])):
+        return True
+        
+    return False
+
+def giveresult(urls, domain):
+    if urls == None:
+        logging.warning("No results found")
+        return None
+    
+    # 加载黑名单配置
+    blacklist = load_blacklist()
+    
+    # 如果有黑名单配置，进行过滤
+    if blacklist:
+        filtered_urls = [url for url in urls if not should_filter_url(url, blacklist)]
+        logging.info(f"Filtered {len(urls) - len(filtered_urls)} URLs using blacklist")
+        urls = filtered_urls
+    
+    logging.info(f"Found {len(urls)} URLs")
+    content_url = ""
+    content_subdomain = ""
+    
+    print("\n=== Found URLs ===")
+    for url in urls:
+        content_url += url + "\n"
+        print(f"  {url}")
+        
+    subdomains = find_subdomain(urls, domain)
+    print(f"\n=== Found {len(subdomains)} Subdomains ===")
+    
+    for subdomain in subdomains:
+        content_subdomain += subdomain + "\n"
+        print(f"  {subdomain}")
+    
+    # 只在指定-o参数时生成HTML报告
+    if args.output:
+        # 生成报告
+        scan_info = {
+            'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+            'target': domain,
+            'duration': time.time() - scan_info['start_time']
+        }
+        
+        html_report = generate_html_report(urls, subdomains, scan_info)
+        
+        # 使用指定的文件名保存HTML报告
+        with open(args.output, 'w', encoding='utf-8') as f:
+            f.write(html_report)
+        logging.info(f"HTML report saved to {args.output}")
+    
+    # 保存原始结果
+    if args.outputurl:
+        with open(args.outputurl, "a", encoding='utf-8') as f:
+            f.write(content_url)
+        logging.info(f"URLs saved to {args.outputurl}")
+        
+    if args.outputsubdomain:
+        with open(args.outputsubdomain, "a", encoding='utf-8') as f:
+            f.write(content_subdomain)
+        logging.info(f"Subdomains saved to {args.outputsubdomain}")
 
 if __name__ == "__main__":
 	urllib3.disable_warnings()
 	args = parse_args()
-	if args.file == None:
-		if args.deep is not True:
-			urls = find_by_url(args.url)
-			giveresult(urls, args.url)
+	
+	# 设置日志
+	setup_logging()
+	
+	scan_info = {'start_time': time.time()}
+	
+	try:
+		if args.file == None:
+			if args.deep is not True:
+				urls = find_by_url(args.url)
+				giveresult(urls, args.url)
+			else:
+				urls = find_by_url_deep(args.url)
+				giveresult(urls, args.url)
 		else:
-			urls = find_by_url_deep(args.url)
-			giveresult(urls, args.url)
-	else:
-		if args.js is not True:
-			urls = find_by_file(args.file)
-			giveresult(urls, urls[0])
-		else:
-			urls = find_by_file(args.file, js = True)
-			giveresult(urls, urls[0])
+			if args.js is not True:
+				urls = find_by_file(args.file)
+				giveresult(urls, urls[0] if urls else None)
+			else:
+				urls = find_by_file(args.file, js=True)
+				giveresult(urls, urls[0] if urls else None)
+	except Exception as e:
+		logging.error(f"An error occurred: {str(e)}")
+		sys.exit(1)
